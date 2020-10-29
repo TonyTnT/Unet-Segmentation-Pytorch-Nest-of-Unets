@@ -8,7 +8,7 @@ from torch import optim
 import torch.utils.data
 import torch
 import torch.nn.functional as F
-
+import sys
 import torch.nn
 import torchvision
 import matplotlib.pyplot as plt
@@ -26,6 +26,8 @@ from losses import calc_loss, dice_loss, threshold_predictions_v,threshold_predi
 from ploting import plot_kernels, LayerActivations, input_images, plot_grad_flow
 from Metrics import dice_coeff, accuracy_score
 import time
+import warnings
+warnings.filterwarnings("ignore")
 #from ploting import VisdomLinePlotter
 #from visdom import Visdom
 
@@ -52,7 +54,7 @@ print('batch_size = ' + str(batch_size))
 
 valid_size = 0.15
 
-epoch = 15
+epoch = 3
 print('epoch = ' + str(epoch))
 
 random_seed = random.randint(1, 100)
@@ -94,7 +96,7 @@ model_test = model_unet(model_Inputs[0], 3, 1)
 model_test.to(device)
 
 #######################################################
-#Getting the Summary of Model
+#Getting the Summary of Model 打印模型信息
 #######################################################
 
 torchsummary.summary(model_test, input_size=(3, 128, 128))
@@ -103,12 +105,12 @@ torchsummary.summary(model_test, input_size=(3, 128, 128))
 #Passing the Dataset of Images and Labels
 #######################################################
 
-t_data = '/flush1/bat161/segmentation/New_Trails/venv/DATA/new_3C_I_ori/'
-l_data = '/flush1/bat161/segmentation/New_Trails/venv/DATA/new_3C_L_ori/'
-test_image = '/flush1/bat161/segmentation/New_Trails/venv/DATA/test_new_3C_I_ori/0131_0009.png'
-test_label = '/flush1/bat161/segmentation/New_Trails/venv/DATA/test_new_3C_L_ori/0131_0009.png'
-test_folderP = '/flush1/bat161/segmentation/New_Trails/venv/DATA/test_new_3C_I_ori/*'
-test_folderL = '/flush1/bat161/segmentation/New_Trails/venv/DATA/test_new_3C_L_ori/*'
+t_data = '/media/mdisk/chenx2/US_dalian_train/JPEGImages/'
+l_data = '/media/mdisk/chenx2/US_dalian_train/Segmentation/'
+test_image = '/media/mdisk/chenx2/1718434_BENIGN_0689.jpg'
+test_label = '/media/mdisk/chenx2/1718434_BENIGN_0689.png'
+test_folderP = '/media/mdisk/chenx2/US_dalian_test/JPEGImages/*'
+test_folderL = '/media/mdisk/chenx2/US_dalian_test/Segmentation/*'
 
 Training_Data = Images_Dataset_folder(t_data,
                                       l_data)
@@ -119,7 +121,7 @@ Training_Data = Images_Dataset_folder(t_data,
 
 data_transform = torchvision.transforms.Compose([
           #  torchvision.transforms.Resize((128,128)),
-         #   torchvision.transforms.CenterCrop(96),
+            torchvision.transforms.CenterCrop(96),
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
         ])
@@ -132,6 +134,7 @@ num_train = len(Training_Data)
 indices = list(range(num_train))
 split = int(np.floor(valid_size * num_train))
 
+print('Train size',num_train)
 if shuffle:
     np.random.seed(random_seed)
     np.random.shuffle(indices)
@@ -145,7 +148,6 @@ train_loader = torch.utils.data.DataLoader(Training_Data, batch_size=batch_size,
 
 valid_loader = torch.utils.data.DataLoader(Training_Data, batch_size=batch_size, sampler=valid_sampler,
                                            num_workers=num_workers, pin_memory=pin_memory,)
-
 #######################################################
 #Using Adam as Optimizer
 #######################################################
@@ -239,10 +241,8 @@ for i in range(epoch):
 
     model_test.train()
     k = 1
-
     for x, y in train_loader:
         x, y = x.to(device), y.to(device)
-
         #If want to get the input images with their Augmentation - To check the data flowing in net
         input_images(x, y, i, n_iter, k)
 
@@ -262,7 +262,7 @@ for i in range(epoch):
         opt.step()
         x_size = lossT.item() * x.size(0)
         k = 2
-
+    print('this epoch train finished size ',len(train_loader))
     #    for name, param in model_test.named_parameters():
     #        name = name.replace('.', '/')
     #        writer1.add_histogram(name, param.data.cpu().numpy(), i + 1)
@@ -285,6 +285,7 @@ for i in range(epoch):
         valid_loss += lossL.item() * x1.size(0)
         x_size1 = lossL.item() * x1.size(0)
 
+    print('this epoch valid finished size ',len(valid_loader))
     #######################################################
     #Saving the predictions
     #######################################################
@@ -294,7 +295,7 @@ for i in range(epoch):
     s_tb = data_transform(im_tb)
     s_label = data_transform(im_label)
     s_label = s_label.detach().numpy()
-
+    print('hook input',s_tb.unsqueeze(0).shape)
     pred_tb = model_test(s_tb.unsqueeze(0).to(device)).cpu()
     pred_tb = F.sigmoid(pred_tb)
     pred_tb = pred_tb.detach().numpy()
